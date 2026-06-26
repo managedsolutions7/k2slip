@@ -30,9 +30,17 @@ export default async function Home() {
         </div>
       </header>
       <main className="flex flex-1 items-center justify-center">
-        <p className="text-gray-500">
-          Welcome. Entry form and past entries coming soon.
-        </p>
+        <div className="text-center">
+          <Link
+            href="/entries/new"
+            className="inline-block rounded-lg bg-blue-600 px-8 py-4 text-lg font-semibold text-white hover:bg-blue-700"
+          >
+            New Weighment Entry
+          </Link>
+          <p className="mt-4 text-sm text-gray-500">
+            Past entries and batch printing coming soon.
+          </p>
+        </div>
       </main>
     </div>
   );
