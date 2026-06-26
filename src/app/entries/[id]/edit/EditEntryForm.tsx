@@ -91,9 +91,11 @@ export default function EditEntryForm({ entry }: { entry: EntryData }) {
       fetch("/api/materials").then((r) => r.json()),
       fetch("/api/vehicle-types").then((r) => r.json()),
     ]).then(([c, m, v]) => {
-      setCompanies(c);
-      setMaterials(m.map((x: { name: string }) => x.name));
-      setVehicleTypes(v.map((x: { name: string }) => x.name));
+      if (Array.isArray(c)) setCompanies(c);
+      if (Array.isArray(m)) setMaterials(m.map((x: { name: string }) => x.name));
+      if (Array.isArray(v)) setVehicleTypes(v.map((x: { name: string }) => x.name));
+    }).catch(() => {
+      setError("Failed to load form data. Please refresh.");
     });
   }, []);
 

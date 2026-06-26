@@ -129,15 +129,27 @@ export default function PrintView() {
   const router = useRouter();
   const [entries, setEntries] = useState<PrintEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   const ids = searchParams.get("ids") || "";
 
   useEffect(() => {
-    if (!ids) return;
+    if (!ids) {
+      setLoading(false);
+      return;
+    }
     fetch(`/api/entries?ids=${ids}`)
       .then((r) => r.json())
       .then((data) => {
-        setEntries(data);
+        if (Array.isArray(data)) {
+          setEntries(data);
+        } else {
+          setError(data.error || "Failed to load entries");
+        }
+        setLoading(false);
+      })
+      .catch(() => {
+        setError("Failed to load entries. Please try again.");
         setLoading(false);
       });
   }, [ids]);
@@ -150,6 +162,22 @@ export default function PrintView() {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <p className="text-gray-500">No entries selected for printing.</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-600">{error}</p>
+          <button
+            onClick={() => router.back()}
+            className="mt-4 rounded border px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+          >
+            Go Back
+          </button>
+        </div>
       </div>
     );
   }

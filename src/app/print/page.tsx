@@ -8,7 +8,13 @@ export default async function PrintPage() {
   if (!session) redirect("/login");
 
   return (
-    <Suspense>
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center">
+          <p className="text-gray-500">Loading print view...</p>
+        </div>
+      }
+    >
       <PrintView />
     </Suspense>
   );

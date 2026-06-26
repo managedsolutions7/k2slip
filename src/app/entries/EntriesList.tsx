@@ -55,10 +55,15 @@ export default function EntriesList() {
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
+  const [error, setError] = useState("");
+
   useEffect(() => {
     fetch("/api/companies")
       .then((r) => r.json())
-      .then(setCompanies);
+      .then((data) => {
+        if (Array.isArray(data)) setCompanies(data);
+      })
+      .catch(() => setError("Failed to load companies"));
   }, []);
 
   const fetchEntries = useCallback(async () => {
@@ -76,6 +81,9 @@ export default function EntriesList() {
       setEntries(result.entries);
       setTotal(result.total!);
       setTotalPages(result.totalPages!);
+      setError("");
+    } else if ("error" in result) {
+      setError(result.error as string);
     }
     setLoading(false);
   }, [page, filterCompany, filterDateFrom, filterDateTo, filterVehicle, filterDriver, filterSlipNo]);
@@ -214,6 +222,12 @@ export default function EntriesList() {
           </button>
         </div>
       </form>
+
+      {error && (
+        <div className="mb-4 rounded bg-red-50 p-3 text-sm text-red-600">
+          {error}
+        </div>
+      )}
 
       {loading ? (
         <p className="text-sm text-gray-500">Loading...</p>
