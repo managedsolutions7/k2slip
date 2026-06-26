@@ -1,10 +1,30 @@
-export default function Home() {
+import { auth } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import LogoutButton from "./LogoutButton";
+
+export default async function Home() {
+  const session = await auth();
+  if (!session) redirect("/login");
+
   return (
-    <div className="flex min-h-screen items-center justify-center">
-      <div className="text-center">
-        <h1 className="text-3xl font-bold">K2 Weighbridge</h1>
-        <p className="mt-2 text-gray-600">Weighbridge Slip Application</p>
-      </div>
+    <div className="flex min-h-screen flex-col">
+      <header className="flex items-center justify-between border-b bg-white px-6 py-4">
+        <h1 className="text-xl font-bold text-gray-900">K2 Weighbridge</h1>
+        <div className="flex items-center gap-4">
+          <span className="text-sm text-gray-600">
+            {session.user.username}{" "}
+            <span className="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
+              {session.user.role}
+            </span>
+          </span>
+          <LogoutButton />
+        </div>
+      </header>
+      <main className="flex flex-1 items-center justify-center">
+        <p className="text-gray-500">
+          Welcome. Entry form and past entries coming soon.
+        </p>
+      </main>
     </div>
   );
 }
