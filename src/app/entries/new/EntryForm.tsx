@@ -239,13 +239,18 @@ export default function EntryForm() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
+      <div className="mb-4 flex items-center gap-2 text-sm text-gray-500">
+        <button onClick={() => router.push("/entries")} className="hover:text-gray-800 hover:underline">Past Entries</button>
+        <span>/</span>
+        <span className="text-gray-900">New Entry</span>
+      </div>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">New Weighment Entry</h1>
         <button
-          onClick={() => router.push("/")}
-          className="text-sm text-gray-500 hover:underline"
+          onClick={() => router.push("/entries")}
+          className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
         >
-          Back
+          ← Back to Entries
         </button>
       </div>
 
@@ -389,7 +394,7 @@ export default function EntryForm() {
               <label className="block text-sm font-medium text-gray-700">
                 Net Weight
               </label>
-              <div className="mt-1 flex h-[38px] items-center rounded border border-gray-200 bg-gray-50 px-3 text-sm font-semibold text-gray-900">
+              <div className="mt-1 flex h-9.5 items-center rounded border border-gray-200 bg-gray-50 px-3 text-sm font-semibold text-gray-900">
                 {netWeight != null ? `${netWeight} kg` : "—"}
               </div>
             </div>

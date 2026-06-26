@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import { getEntries, type EntriesQuery } from "./actions";
 import Link from "next/link";
@@ -133,6 +133,11 @@ export default function EntriesList() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
+      <div className="mb-4 flex items-center gap-2 text-sm text-gray-500">
+        <Link href="/" className="hover:text-gray-800 hover:underline">Home</Link>
+        <span>/</span>
+        <span className="text-gray-900">Past Entries</span>
+      </div>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Past Entries</h1>
         <div className="flex gap-3">
@@ -148,7 +153,7 @@ export default function EntriesList() {
             href="/entries/new"
             className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
           >
-            New Entry
+            + New Entry
           </Link>
         </div>
       </div>
@@ -268,9 +273,8 @@ export default function EntriesList() {
               </thead>
               <tbody>
                 {entries.map((entry) => (
-                  <>
+                  <Fragment key={entry._id}>
                     <tr
-                      key={entry._id}
                       className={`border-b hover:bg-gray-50 ${
                         selected.has(entry._id) ? "bg-blue-50" : ""
                       }`}
@@ -330,7 +334,7 @@ export default function EntriesList() {
                       </td>
                     </tr>
                     {expandedId === entry._id && (
-                      <tr key={`${entry._id}-detail`} className="border-b bg-gray-50">
+                      <tr className="border-b bg-gray-50">
                         <td colSpan={8} className="px-6 py-4">
                           <div className="grid gap-2 text-sm sm:grid-cols-3">
                             <div>
@@ -397,7 +401,7 @@ export default function EntriesList() {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 ))}
               </tbody>
             </table>

@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import AppHeader from "@/app/components/AppHeader";
 import EntryForm from "./EntryForm";
 
 export default async function NewEntryPage() {
@@ -8,6 +9,7 @@ export default async function NewEntryPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <AppHeader />
       <EntryForm />
     </div>
   );

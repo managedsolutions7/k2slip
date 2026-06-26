@@ -22,11 +22,17 @@ async function seed() {
 
   const UserSchema = new mongoose.Schema<IUser>(
     {
-      username: { type: String, required: true, unique: true, lowercase: true, trim: true },
+      username: {
+        type: String,
+        required: true,
+        unique: true,
+        lowercase: true,
+        trim: true,
+      },
       passwordHash: { type: String, required: true },
       role: { type: String, enum: ["admin", "operator"], required: true },
     },
-    { timestamps: true }
+    { timestamps: true },
   );
 
   const User =

@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import AppHeader from "@/app/components/AppHeader";
 import { getEntry } from "../../actions";
 import EditEntryForm from "./EditEntryForm";
 
@@ -15,6 +16,7 @@ export default async function EditEntryPage(props: {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <AppHeader />
       <EditEntryForm entry={entry} />
     </div>
   );

@@ -1,0 +1,4 @@
+date,company_name,printed_slip_no,driver_name,driver_contact,vehicle_type,material,gross_weight_kg,tare_weight_kg,dust_percent,dust_weight_kg,moisture_percent,moisture_weight_kg
+2026-01-15,K2 Biofuels,SB-1001,Ravi Kumar,9812345678,Truck - 10T,Wheat Straw,18500,6200,2,,1,
+2026-01-15,K2 Power,SB-1002,Suresh Singh,9823456789,Truck - 14T,Coal,22000,7800,,320,,500
+2026-01-16,K2 Biofuels,SB-1003,Mohan Das,,Tractor,Paddy,8500,2200,,,,
