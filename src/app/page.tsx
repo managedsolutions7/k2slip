@@ -30,16 +30,27 @@ export default async function Home() {
         </div>
       </header>
       <main className="flex flex-1 items-center justify-center">
-        <div className="text-center">
+        <div className="flex gap-6">
           <Link
             href="/entries/new"
-            className="inline-block rounded-lg bg-blue-600 px-8 py-4 text-lg font-semibold text-white hover:bg-blue-700"
+            className="flex flex-col items-center rounded-lg border bg-white px-8 py-6 shadow-sm hover:shadow-md"
           >
-            New Weighment Entry
+            <span className="text-3xl">+</span>
+            <span className="mt-2 text-lg font-semibold text-gray-900">
+              New Entry
+            </span>
+            <span className="text-sm text-gray-500">Create a weighment</span>
           </Link>
-          <p className="mt-4 text-sm text-gray-500">
-            Past entries and batch printing coming soon.
-          </p>
+          <Link
+            href="/entries"
+            className="flex flex-col items-center rounded-lg border bg-white px-8 py-6 shadow-sm hover:shadow-md"
+          >
+            <span className="text-3xl">&#128196;</span>
+            <span className="mt-2 text-lg font-semibold text-gray-900">
+              Past Entries
+            </span>
+            <span className="text-sm text-gray-500">Search & reprint</span>
+          </Link>
         </div>
       </main>
     </div>
