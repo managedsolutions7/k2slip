@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, Fragment } from "react";
+import { useState, useEffect, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import { getEntries, type EntriesQuery } from "./actions";
 import Link from "next/link";
@@ -85,28 +85,36 @@ export default function EntriesList({
       .catch(() => setError("Failed to load companies"));
   }, []);
 
-  const fetchEntries = useCallback(async () => {
-    setLoading(true);
-    const query: EntriesQuery = { page };
-    if (filterCompany) query.company = filterCompany;
-    if (filterDateFrom) query.dateFrom = filterDateFrom;
-    if (filterDateTo) query.dateTo = filterDateTo;
-    if (filterVehicle) query.vehicleType = filterVehicle;
-    if (filterDriver) query.driverName = filterDriver;
-    if (filterVendor) query.vendorName = filterVendor;
-    if (filterVehicleNumber) query.vehicleNumber = filterVehicleNumber;
-    if (filterSlipNo) query.slipNo = filterSlipNo;
+  useEffect(() => {
+    let cancelled = false;
 
-    const result = await getEntries(query);
-    if ("entries" in result && result.entries) {
-      setEntries(result.entries);
-      setTotal(result.total!);
-      setTotalPages(result.totalPages!);
-      setError("");
-    } else if ("error" in result) {
-      setError(result.error as string);
+    async function load() {
+      setLoading(true);
+      const query: EntriesQuery = { page };
+      if (filterCompany) query.company = filterCompany;
+      if (filterDateFrom) query.dateFrom = filterDateFrom;
+      if (filterDateTo) query.dateTo = filterDateTo;
+      if (filterVehicle) query.vehicleType = filterVehicle;
+      if (filterDriver) query.driverName = filterDriver;
+      if (filterVendor) query.vendorName = filterVendor;
+      if (filterVehicleNumber) query.vehicleNumber = filterVehicleNumber;
+      if (filterSlipNo) query.slipNo = filterSlipNo;
+
+      const result = await getEntries(query);
+      if (cancelled) return;
+      if ("entries" in result && result.entries) {
+        setEntries(result.entries);
+        setTotal(result.total!);
+        setTotalPages(result.totalPages!);
+        setError("");
+      } else if ("error" in result) {
+        setError(result.error as string);
+      }
+      setLoading(false);
     }
-    setLoading(false);
+
+    load();
+    return () => { cancelled = true; };
   }, [
     page,
     filterCompany,
@@ -119,14 +127,9 @@ export default function EntriesList({
     filterSlipNo,
   ]);
 
-  useEffect(() => {
-    fetchEntries();
-  }, [fetchEntries]);
-
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
     setPage(1);
-    fetchEntries();
   }
 
   function clearFilters() {
