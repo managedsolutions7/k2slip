@@ -107,10 +107,10 @@ export async function importEntriesFromCSV(csvText: string): Promise<ImportResul
     const material = get("material");
     const grossWeight = toNum(get("gross_weight_kg"));
     const tareWeight = toNum(get("tare_weight_kg"));
-    const dustPercent = toNum(get("dust_percent"));
     const dustWeightVal = toNum(get("dust_weight_kg"));
-    const moisturePercent = toNum(get("moisture_percent"));
     const moistureWeightVal = toNum(get("moisture_weight_kg"));
+    const dustExcluded = get("dust_excluded").toLowerCase() === "true";
+    const moistureExcluded = get("moisture_excluded").toLowerCase() === "true";
 
     if (!dateStr) { failed.push({ row: rowNum, error: "date is required" }); continue; }
     if (!companyName) { failed.push({ row: rowNum, error: "company_name is required" }); continue; }
@@ -140,10 +140,10 @@ export async function importEntriesFromCSV(csvText: string): Promise<ImportResul
     const calc = computeAll({
       grossWeight,
       tareWeight,
-      dustPercent: dustPercent != null ? dustPercent : null,
-      dustWeight: dustPercent == null ? dustWeightVal : null,
-      moisturePercent: moisturePercent != null ? moisturePercent : null,
-      moistureWeight: moisturePercent == null ? moistureWeightVal : null,
+      dustWeight: dustWeightVal,
+      moistureWeight: moistureWeightVal,
+      dustExcluded,
+      moistureExcluded,
     });
 
     try {
@@ -158,10 +158,13 @@ export async function importEntriesFromCSV(csvText: string): Promise<ImportResul
         grossWeight,
         tareWeight,
         netWeight: calc.netWeight,
-        dustPercent: calc.dustPercent,
         dustWeight: calc.dustWeight,
-        moisturePercent: calc.moisturePercent,
+        dustPercent: calc.dustPercent,
+        dustExcluded: calc.dustExcluded,
         moistureWeight: calc.moistureWeight,
+        moisturePercent: calc.moisturePercent,
+        moistureExcluded: calc.moistureExcluded,
+        deduction: calc.deduction,
         finalWeight: calc.finalWeight,
         operator: session.user.id,
       });
