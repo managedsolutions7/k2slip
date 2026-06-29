@@ -10,16 +10,18 @@ export interface EntryFormData {
   company: string;
   printedSlipNo: string;
   date: string;
+  vendorName: string;
+  vehicleNumber: string;
   driverName: string;
   driverContact: string;
   vehicleType: string;
   material: string;
   grossWeight: number;
   tareWeight: number;
-  dustPercent: number | null;
   dustWeight: number | null;
-  moisturePercent: number | null;
   moistureWeight: number | null;
+  dustExcluded: boolean;
+  moistureExcluded: boolean;
 }
 
 export async function createEntry(data: EntryFormData) {
@@ -33,7 +35,6 @@ export async function createEntry(data: EntryFormData) {
   if (!data.company) return { error: "Company is required" };
   if (!data.printedSlipNo?.trim()) return { error: "Printed Slip No is required" };
   if (!data.date) return { error: "Date is required" };
-  if (!data.driverName?.trim()) return { error: "Driver Name is required" };
   if (!data.vehicleType?.trim()) return { error: "Vehicle Type is required" };
   if (!data.material?.trim()) return { error: "Material is required" };
   if (data.grossWeight == null || data.grossWeight < 0) return { error: "Gross Weight must be a positive number" };
@@ -46,27 +47,32 @@ export async function createEntry(data: EntryFormData) {
   const calc = computeAll({
     grossWeight: data.grossWeight,
     tareWeight: data.tareWeight,
-    dustPercent: data.dustPercent,
     dustWeight: data.dustWeight,
-    moisturePercent: data.moisturePercent,
     moistureWeight: data.moistureWeight,
+    dustExcluded: data.dustExcluded,
+    moistureExcluded: data.moistureExcluded,
   });
 
   const entry = await Entry.create({
     company: data.company,
     printedSlipNo: data.printedSlipNo.trim(),
     date: new Date(data.date),
-    driverName: data.driverName.trim(),
+    vendorName: data.vendorName?.trim() || "",
+    vehicleNumber: data.vehicleNumber?.trim() || "",
+    driverName: data.driverName?.trim() || "",
     driverContact: data.driverContact?.trim() || "",
     vehicleType: data.vehicleType.trim(),
     material: data.material.trim(),
     grossWeight: data.grossWeight,
     tareWeight: data.tareWeight,
     netWeight: calc.netWeight,
-    dustPercent: calc.dustPercent,
     dustWeight: calc.dustWeight,
-    moisturePercent: calc.moisturePercent,
+    dustPercent: calc.dustPercent,
     moistureWeight: calc.moistureWeight,
+    moisturePercent: calc.moisturePercent,
+    dustExcluded: calc.dustExcluded,
+    moistureExcluded: calc.moistureExcluded,
+    deduction: calc.deduction,
     finalWeight: calc.finalWeight,
     operator: session.user.id,
   });
@@ -80,6 +86,8 @@ export interface EntriesQuery {
   dateTo?: string;
   vehicleType?: string;
   driverName?: string;
+  vendorName?: string;
+  vehicleNumber?: string;
   slipNo?: string;
   page?: number;
 }
@@ -102,6 +110,12 @@ export async function getEntries(query: EntriesQuery) {
   if (query.driverName) {
     filter.driverName = { $regex: query.driverName, $options: "i" };
   }
+  if (query.vendorName) {
+    filter.vendorName = { $regex: query.vendorName, $options: "i" };
+  }
+  if (query.vehicleNumber) {
+    filter.vehicleNumber = { $regex: query.vehicleNumber, $options: "i" };
+  }
   if (query.slipNo) {
     filter.printedSlipNo = { $regex: query.slipNo, $options: "i" };
   }
@@ -121,6 +135,7 @@ export async function getEntries(query: EntriesQuery) {
   const [entries, total] = await Promise.all([
     Entry.find(filter)
       .populate("company", "name")
+      .populate("operator", "username")
       .sort({ date: -1, createdAt: -1 })
       .skip(skip)
       .limit(PAGE_SIZE)
@@ -138,6 +153,8 @@ export async function getEntries(query: EntriesQuery) {
       printedSlipNo: e.printedSlipNo,
       internalId: e.internalId,
       date: (e.date as Date).toISOString(),
+      vendorName: e.vendorName,
+      vehicleNumber: e.vehicleNumber,
       driverName: e.driverName,
       driverContact: e.driverContact,
       vehicleType: e.vehicleType,
@@ -145,11 +162,18 @@ export async function getEntries(query: EntriesQuery) {
       grossWeight: e.grossWeight,
       tareWeight: e.tareWeight,
       netWeight: e.netWeight,
-      dustPercent: e.dustPercent,
       dustWeight: e.dustWeight,
-      moisturePercent: e.moisturePercent,
+      dustPercent: e.dustPercent,
       moistureWeight: e.moistureWeight,
+      moisturePercent: e.moisturePercent,
+      dustExcluded: e.dustExcluded,
+      moistureExcluded: e.moistureExcluded,
+      deduction: e.deduction,
       finalWeight: e.finalWeight,
+      operator: {
+        _id: (e.operator as unknown as { _id: unknown; username: string })._id!.toString(),
+        username: (e.operator as unknown as { _id: unknown; username: string }).username,
+      },
     })),
     total,
     page,
@@ -162,18 +186,23 @@ export async function getEntry(id: string) {
   if (!session) return null;
 
   await connectDB();
-  const entry = await Entry.findById(id).populate("company", "name address phone").lean();
+  const entry = await Entry.findById(id)
+    .populate("company", "name address phone")
+    .populate("operator", "username")
+    .lean();
   if (!entry) return null;
 
   return {
     _id: entry._id.toString(),
     company: {
-      _id: (entry.company as unknown as { _id: unknown; name: string; address: string; phone: string })._id!.toString(),
+      _id: (entry.company as unknown as { _id: unknown; name: string })._id!.toString(),
       name: (entry.company as unknown as { _id: unknown; name: string })?.name,
     },
     printedSlipNo: entry.printedSlipNo,
     internalId: entry.internalId,
     date: (entry.date as Date).toISOString().split("T")[0],
+    vendorName: entry.vendorName,
+    vehicleNumber: entry.vehicleNumber,
     driverName: entry.driverName,
     driverContact: entry.driverContact,
     vehicleType: entry.vehicleType,
@@ -181,11 +210,18 @@ export async function getEntry(id: string) {
     grossWeight: entry.grossWeight,
     tareWeight: entry.tareWeight,
     netWeight: entry.netWeight,
-    dustPercent: entry.dustPercent,
     dustWeight: entry.dustWeight,
-    moisturePercent: entry.moisturePercent,
+    dustPercent: entry.dustPercent,
     moistureWeight: entry.moistureWeight,
+    moisturePercent: entry.moisturePercent,
+    dustExcluded: entry.dustExcluded,
+    moistureExcluded: entry.moistureExcluded,
+    deduction: entry.deduction,
     finalWeight: entry.finalWeight,
+    operator: {
+      _id: (entry.operator as unknown as { _id: unknown; username: string })._id!.toString(),
+      username: (entry.operator as unknown as { _id: unknown; username: string }).username,
+    },
   };
 }
 
@@ -195,10 +231,16 @@ export async function updateEntry(id: string, data: EntryFormData) {
 
   await connectDB();
 
+  const existing = await Entry.findById(id);
+  if (!existing) return { error: "Entry not found" };
+
+  if (session.user.role !== "admin" && existing.operator.toString() !== session.user.id) {
+    return { error: "You can only edit your own entries" };
+  }
+
   if (!data.company) return { error: "Company is required" };
   if (!data.printedSlipNo?.trim()) return { error: "Printed Slip No is required" };
   if (!data.date) return { error: "Date is required" };
-  if (!data.driverName?.trim()) return { error: "Driver Name is required" };
   if (!data.vehicleType?.trim()) return { error: "Vehicle Type is required" };
   if (!data.material?.trim()) return { error: "Material is required" };
   if (data.grossWeight == null || data.grossWeight < 0) return { error: "Gross Weight must be a positive number" };
@@ -211,31 +253,34 @@ export async function updateEntry(id: string, data: EntryFormData) {
   const calc = computeAll({
     grossWeight: data.grossWeight,
     tareWeight: data.tareWeight,
-    dustPercent: data.dustPercent,
     dustWeight: data.dustWeight,
-    moisturePercent: data.moisturePercent,
     moistureWeight: data.moistureWeight,
+    dustExcluded: data.dustExcluded,
+    moistureExcluded: data.moistureExcluded,
   });
 
-  const entry = await Entry.findByIdAndUpdate(id, {
+  await Entry.findByIdAndUpdate(id, {
     company: data.company,
     printedSlipNo: data.printedSlipNo.trim(),
     date: new Date(data.date),
-    driverName: data.driverName.trim(),
+    vendorName: data.vendorName?.trim() || "",
+    vehicleNumber: data.vehicleNumber?.trim() || "",
+    driverName: data.driverName?.trim() || "",
     driverContact: data.driverContact?.trim() || "",
     vehicleType: data.vehicleType.trim(),
     material: data.material.trim(),
     grossWeight: data.grossWeight,
     tareWeight: data.tareWeight,
     netWeight: calc.netWeight,
-    dustPercent: calc.dustPercent,
     dustWeight: calc.dustWeight,
-    moisturePercent: calc.moisturePercent,
+    dustPercent: calc.dustPercent,
     moistureWeight: calc.moistureWeight,
+    moisturePercent: calc.moisturePercent,
+    dustExcluded: calc.dustExcluded,
+    moistureExcluded: calc.moistureExcluded,
+    deduction: calc.deduction,
     finalWeight: calc.finalWeight,
   });
-
-  if (!entry) return { error: "Entry not found" };
 
   return { success: true };
 }

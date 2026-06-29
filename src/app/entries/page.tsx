@@ -10,7 +10,7 @@ export default async function EntriesPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <AppHeader />
-      <EntriesList />
+      <EntriesList userRole={session.user.role} userId={session.user.id} />
     </div>
   );
 }

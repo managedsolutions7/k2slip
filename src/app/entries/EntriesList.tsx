@@ -10,12 +10,19 @@ interface CompanyRef {
   name: string;
 }
 
+interface OperatorRef {
+  _id: string;
+  username: string;
+}
+
 interface EntryRow {
   _id: string;
   company: CompanyRef;
   printedSlipNo: string;
   internalId: number;
   date: string;
+  vendorName: string;
+  vehicleNumber: string;
   driverName: string;
   driverContact: string;
   vehicleType: string;
@@ -23,11 +30,15 @@ interface EntryRow {
   grossWeight: number;
   tareWeight: number;
   netWeight: number;
-  dustPercent: number | null;
   dustWeight: number | null;
-  moisturePercent: number | null;
+  dustPercent: number | null;
   moistureWeight: number | null;
+  moisturePercent: number | null;
+  dustExcluded: boolean;
+  moistureExcluded: boolean;
+  deduction: number;
   finalWeight: number;
+  operator: OperatorRef;
 }
 
 interface CompanyOption {
@@ -35,7 +46,13 @@ interface CompanyOption {
   name: string;
 }
 
-export default function EntriesList() {
+export default function EntriesList({
+  userRole,
+  userId,
+}: {
+  userRole: string;
+  userId: string;
+}) {
   const router = useRouter();
 
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
@@ -51,6 +68,8 @@ export default function EntriesList() {
   const [filterDateTo, setFilterDateTo] = useState("");
   const [filterVehicle, setFilterVehicle] = useState("");
   const [filterDriver, setFilterDriver] = useState("");
+  const [filterVendor, setFilterVendor] = useState("");
+  const [filterVehicleNumber, setFilterVehicleNumber] = useState("");
   const [filterSlipNo, setFilterSlipNo] = useState("");
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -74,6 +93,8 @@ export default function EntriesList() {
     if (filterDateTo) query.dateTo = filterDateTo;
     if (filterVehicle) query.vehicleType = filterVehicle;
     if (filterDriver) query.driverName = filterDriver;
+    if (filterVendor) query.vendorName = filterVendor;
+    if (filterVehicleNumber) query.vehicleNumber = filterVehicleNumber;
     if (filterSlipNo) query.slipNo = filterSlipNo;
 
     const result = await getEntries(query);
@@ -86,7 +107,17 @@ export default function EntriesList() {
       setError(result.error as string);
     }
     setLoading(false);
-  }, [page, filterCompany, filterDateFrom, filterDateTo, filterVehicle, filterDriver, filterSlipNo]);
+  }, [
+    page,
+    filterCompany,
+    filterDateFrom,
+    filterDateTo,
+    filterVehicle,
+    filterDriver,
+    filterVendor,
+    filterVehicleNumber,
+    filterSlipNo,
+  ]);
 
   useEffect(() => {
     fetchEntries();
@@ -104,6 +135,8 @@ export default function EntriesList() {
     setFilterDateTo("");
     setFilterVehicle("");
     setFilterDriver("");
+    setFilterVendor("");
+    setFilterVehicleNumber("");
     setFilterSlipNo("");
     setPage(1);
   }
@@ -131,10 +164,28 @@ export default function EntriesList() {
     router.push(`/print?ids=${ids}`);
   }
 
+  function canEdit(entry: EntryRow): boolean {
+    return userRole === "admin" || entry.operator._id === userId;
+  }
+
+  function formatDustMoisture(
+    weight: number | null,
+    percent: number | null,
+    excluded: boolean,
+  ): string {
+    if (weight == null) return "—";
+    let s = `${weight} kg`;
+    if (percent != null) s += ` (${percent}%)`;
+    if (excluded) s += " *";
+    return s;
+  }
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
       <div className="mb-4 flex items-center gap-2 text-sm text-gray-500">
-        <Link href="/" className="hover:text-gray-800 hover:underline">Home</Link>
+        <Link href="/" className="hover:text-gray-800 hover:underline">
+          Home
+        </Link>
         <span>/</span>
         <span className="text-gray-900">Past Entries</span>
       </div>
@@ -162,7 +213,7 @@ export default function EntriesList() {
         onSubmit={handleSearch}
         className="mb-6 rounded-lg border bg-white p-4 shadow-sm"
       >
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <select
             value={filterCompany}
             onChange={(e) => setFilterCompany(e.target.value)}
@@ -191,9 +242,23 @@ export default function EntriesList() {
           />
           <input
             type="text"
-            value={filterVehicle}
-            onChange={(e) => setFilterVehicle(e.target.value)}
-            placeholder="Vehicle type"
+            value={filterSlipNo}
+            onChange={(e) => setFilterSlipNo(e.target.value)}
+            placeholder="Slip no"
+            className="rounded border px-3 py-2 text-sm text-gray-900"
+          />
+          <input
+            type="text"
+            value={filterVendor}
+            onChange={(e) => setFilterVendor(e.target.value)}
+            placeholder="Vendor name"
+            className="rounded border px-3 py-2 text-sm text-gray-900"
+          />
+          <input
+            type="text"
+            value={filterVehicleNumber}
+            onChange={(e) => setFilterVehicleNumber(e.target.value)}
+            placeholder="Vehicle number"
             className="rounded border px-3 py-2 text-sm text-gray-900"
           />
           <input
@@ -205,9 +270,9 @@ export default function EntriesList() {
           />
           <input
             type="text"
-            value={filterSlipNo}
-            onChange={(e) => setFilterSlipNo(e.target.value)}
-            placeholder="Slip no"
+            value={filterVehicle}
+            onChange={(e) => setFilterVehicle(e.target.value)}
+            placeholder="Vehicle type"
             className="rounded border px-3 py-2 text-sm text-gray-900"
           />
         </div>
@@ -243,9 +308,7 @@ export default function EntriesList() {
           <div className="mb-2 flex items-center justify-between text-sm text-gray-500">
             <span>{total} entries found</span>
             <button onClick={selectAll} className="hover:underline">
-              {selected.size === entries.length
-                ? "Deselect all"
-                : "Select all"}
+              {selected.size === entries.length ? "Deselect all" : "Select all"}
             </button>
           </div>
 
@@ -256,14 +319,17 @@ export default function EntriesList() {
                   <th className="px-3 py-3 font-medium">
                     <input
                       type="checkbox"
-                      checked={selected.size === entries.length && entries.length > 0}
+                      checked={
+                        selected.size === entries.length && entries.length > 0
+                      }
                       onChange={selectAll}
                     />
                   </th>
                   <th className="px-3 py-3 font-medium">Slip No</th>
                   <th className="px-3 py-3 font-medium">Date</th>
                   <th className="px-3 py-3 font-medium">Company</th>
-                  <th className="px-3 py-3 font-medium">Driver</th>
+                  <th className="px-3 py-3 font-medium">Vendor</th>
+                  <th className="px-3 py-3 font-medium">Vehicle</th>
                   <th className="px-3 py-3 font-medium">Material</th>
                   <th className="px-3 py-3 font-medium text-right">
                     Final Wt (kg)
@@ -296,7 +362,10 @@ export default function EntriesList() {
                         {entry.company.name}
                       </td>
                       <td className="px-3 py-3 text-gray-600">
-                        {entry.driverName}
+                        {entry.vendorName || "—"}
+                      </td>
+                      <td className="px-3 py-3 text-gray-600">
+                        {entry.vehicleNumber || "—"}
                       </td>
                       <td className="px-3 py-3 text-gray-600">
                         {entry.material}
@@ -309,19 +378,21 @@ export default function EntriesList() {
                           <button
                             onClick={() =>
                               setExpandedId(
-                                expandedId === entry._id ? null : entry._id
+                                expandedId === entry._id ? null : entry._id,
                               )
                             }
                             className="text-xs text-blue-600 hover:underline"
                           >
                             {expandedId === entry._id ? "Hide" : "View"}
                           </button>
-                          <Link
-                            href={`/entries/${entry._id}/edit`}
-                            className="text-xs text-blue-600 hover:underline"
-                          >
-                            Edit
-                          </Link>
+                          {canEdit(entry) && (
+                            <Link
+                              href={`/entries/${entry._id}/edit`}
+                              className="text-xs text-blue-600 hover:underline"
+                            >
+                              Edit
+                            </Link>
+                          )}
                           <button
                             onClick={() =>
                               router.push(`/print?ids=${entry._id}`)
@@ -334,19 +405,44 @@ export default function EntriesList() {
                       </td>
                     </tr>
                     {expandedId === entry._id && (
-                      <tr className="border-b bg-gray-50">
-                        <td colSpan={8} className="px-6 py-4">
+                      <tr
+                        key={`${entry._id}-detail`}
+                        className="border-b bg-gray-50"
+                      >
+                        <td colSpan={9} className="px-6 py-4">
                           <div className="grid gap-2 text-sm sm:grid-cols-3">
                             <div>
-                              <span className="text-gray-500">Vehicle: </span>
+                              <span className="text-gray-500">Vendor: </span>
                               <span className="text-gray-900">
-                                {entry.vehicleType}
+                                {entry.vendorName || "—"}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-gray-500">
+                                Vehicle No:{" "}
+                              </span>
+                              <span className="text-gray-900">
+                                {entry.vehicleNumber || "—"}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-gray-500">Driver: </span>
+                              <span className="text-gray-900">
+                                {entry.driverName || "—"}
                               </span>
                             </div>
                             <div>
                               <span className="text-gray-500">Contact: </span>
                               <span className="text-gray-900">
                                 {entry.driverContact || "—"}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-gray-500">
+                                Vehicle Type:{" "}
+                              </span>
+                              <span className="text-gray-900">
+                                {entry.vehicleType}
                               </span>
                             </div>
                             <div>
@@ -378,17 +474,27 @@ export default function EntriesList() {
                             <div>
                               <span className="text-gray-500">Dust: </span>
                               <span className="text-gray-900">
-                                {entry.dustPercent != null
-                                  ? `${entry.dustPercent}% (${entry.dustWeight} kg)`
-                                  : "—"}
+                                {formatDustMoisture(
+                                  entry.dustWeight,
+                                  entry.dustPercent,
+                                  entry.dustExcluded,
+                                )}
                               </span>
                             </div>
                             <div>
                               <span className="text-gray-500">Moisture: </span>
                               <span className="text-gray-900">
-                                {entry.moisturePercent != null
-                                  ? `${entry.moisturePercent}% (${entry.moistureWeight} kg)`
-                                  : "—"}
+                                {formatDustMoisture(
+                                  entry.moistureWeight,
+                                  entry.moisturePercent,
+                                  entry.moistureExcluded,
+                                )}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-gray-500">Deduction: </span>
+                              <span className="text-gray-900">
+                                {entry.deduction} kg
                               </span>
                             </div>
                             <div>

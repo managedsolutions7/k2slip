@@ -6,95 +6,59 @@ export function computeNet(gross: number, tare: number): number {
   return round2(gross - tare);
 }
 
-export function dustWeightFromPercent(
-  net: number,
-  dustPercent: number
-): number {
-  return round2(net * (dustPercent / 100));
-}
-
-export function dustPercentFromWeight(
-  net: number,
-  dustWeight: number
-): number {
+export function derivePercent(net: number, weight: number): number {
   if (net === 0) return 0;
-  return round2((dustWeight / net) * 100);
-}
-
-export function moistureWeightFromPercent(
-  net: number,
-  moisturePercent: number
-): number {
-  return round2(net * (moisturePercent / 100));
-}
-
-export function moisturePercentFromWeight(
-  net: number,
-  moistureWeight: number
-): number {
-  if (net === 0) return 0;
-  return round2((moistureWeight / net) * 100);
-}
-
-export function computeFinal(
-  net: number,
-  dustWeight: number | null,
-  moistureWeight: number | null
-): number {
-  return round2(net - (dustWeight ?? 0) - (moistureWeight ?? 0));
+  return round2((weight / net) * 100);
 }
 
 export interface CalcInput {
   grossWeight: number;
   tareWeight: number;
-  dustPercent?: number | null;
   dustWeight?: number | null;
-  moisturePercent?: number | null;
   moistureWeight?: number | null;
+  dustExcluded?: boolean;
+  moistureExcluded?: boolean;
 }
 
 export interface CalcResult {
   netWeight: number;
-  dustPercent: number | null;
   dustWeight: number | null;
-  moisturePercent: number | null;
+  dustPercent: number | null;
   moistureWeight: number | null;
+  moisturePercent: number | null;
+  dustExcluded: boolean;
+  moistureExcluded: boolean;
+  deduction: number;
   finalWeight: number;
 }
 
 export function computeAll(input: CalcInput): CalcResult {
   const net = computeNet(input.grossWeight, input.tareWeight);
 
-  let dPercent: number | null = null;
-  let dWeight: number | null = null;
+  const dw = input.dustWeight != null && input.dustWeight !== 0 ? input.dustWeight : null;
+  const mw = input.moistureWeight != null && input.moistureWeight !== 0 ? input.moistureWeight : null;
 
-  if (input.dustPercent != null && input.dustPercent !== 0) {
-    dPercent = input.dustPercent;
-    dWeight = dustWeightFromPercent(net, input.dustPercent);
-  } else if (input.dustWeight != null && input.dustWeight !== 0) {
-    dWeight = input.dustWeight;
-    dPercent = dustPercentFromWeight(net, input.dustWeight);
-  }
+  const dustExcluded = input.dustExcluded ?? false;
+  const moistureExcluded = input.moistureExcluded ?? false;
 
-  let mPercent: number | null = null;
-  let mWeight: number | null = null;
+  const dustPercent = dw != null && net !== 0 ? derivePercent(net, dw) : null;
+  const moisturePercent = mw != null && net !== 0 ? derivePercent(net, mw) : null;
 
-  if (input.moisturePercent != null && input.moisturePercent !== 0) {
-    mPercent = input.moisturePercent;
-    mWeight = moistureWeightFromPercent(net, input.moisturePercent);
-  } else if (input.moistureWeight != null && input.moistureWeight !== 0) {
-    mWeight = input.moistureWeight;
-    mPercent = moisturePercentFromWeight(net, input.moistureWeight);
-  }
+  const includedDust = !dustExcluded ? (dw ?? 0) : 0;
+  const includedMoisture = !moistureExcluded ? (mw ?? 0) : 0;
+  const deduction = Math.max(includedDust, includedMoisture);
 
-  const finalWeight = computeFinal(net, dWeight, mWeight);
+  const finalWeight = round2(net - deduction);
 
   return {
     netWeight: net,
-    dustPercent: dPercent,
-    dustWeight: dWeight,
-    moisturePercent: mPercent,
-    moistureWeight: mWeight,
+    dustWeight: dw,
+    dustPercent,
+    moistureWeight: mw,
+    moisturePercent,
+    dustExcluded,
+    moistureExcluded,
+    deduction,
     finalWeight,
   };
 }

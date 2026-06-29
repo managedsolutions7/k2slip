@@ -1,15 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import {
-  computeNet,
-  dustWeightFromPercent,
-  dustPercentFromWeight,
-  moistureWeightFromPercent,
-  moisturePercentFromWeight,
-  computeFinal,
-} from "@/lib/calc";
+import { computeNet, derivePercent } from "@/lib/calc";
 import { createEntry } from "../actions";
 import ComboBox from "../ComboBox";
 
@@ -38,6 +31,8 @@ export default function EntryForm() {
   const [company, setCompany] = useState("");
   const [printedSlipNo, setPrintedSlipNo] = useState("");
   const [date, setDate] = useState(formatDate(new Date()));
+  const [vendorName, setVendorName] = useState("");
+  const [vehicleNumber, setVehicleNumber] = useState("");
   const [driverName, setDriverName] = useState("");
   const [driverContact, setDriverContact] = useState("");
   const [vehicleType, setVehicleType] = useState("");
@@ -45,21 +40,11 @@ export default function EntryForm() {
 
   const [grossWeight, setGrossWeight] = useState("");
   const [tareWeight, setTareWeight] = useState("");
-  const [netWeight, setNetWeight] = useState<number | null>(null);
 
-  const [dustPercentStr, setDustPercentStr] = useState("");
   const [dustWeightStr, setDustWeightStr] = useState("");
-  const [dustEditMode, setDustEditMode] = useState<"percent" | "weight" | null>(
-    null
-  );
-
-  const [moisturePercentStr, setMoisturePercentStr] = useState("");
   const [moistureWeightStr, setMoistureWeightStr] = useState("");
-  const [moistureEditMode, setMoistureEditMode] = useState<
-    "percent" | "weight" | null
-  >(null);
-
-  const [finalWeight, setFinalWeight] = useState<number | null>(null);
+  const [dustExcluded, setDustExcluded] = useState(false);
+  const [moistureExcluded, setMoistureExcluded] = useState(false);
 
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -70,84 +55,47 @@ export default function EntryForm() {
       fetch("/api/companies").then((r) => r.json()),
       fetch("/api/materials").then((r) => r.json()),
       fetch("/api/vehicle-types").then((r) => r.json()),
-    ]).then(([c, m, v]) => {
-      if (Array.isArray(c)) setCompanies(c);
-      if (Array.isArray(m)) setMaterials(m.map((x: { name: string }) => x.name));
-      if (Array.isArray(v)) setVehicleTypes(v.map((x: { name: string }) => x.name));
-    }).catch(() => {
-      setError("Failed to load form data. Please refresh.");
-    });
+    ])
+      .then(([c, m, v]) => {
+        if (Array.isArray(c)) setCompanies(c);
+        if (Array.isArray(m))
+          setMaterials(m.map((x: { name: string }) => x.name));
+        if (Array.isArray(v))
+          setVehicleTypes(v.map((x: { name: string }) => x.name));
+      })
+      .catch(() => {
+        setError("Failed to load form data. Please refresh.");
+      });
   }, []);
 
-  const recalc = useCallback(() => {
+  const calc = useMemo(() => {
     const g = toNum(grossWeight);
     const t = toNum(tareWeight);
-
-    if (g == null || t == null) {
-      setNetWeight(null);
-      setFinalWeight(null);
-      return;
-    }
+    if (g == null || t == null) return null;
 
     const net = computeNet(g, t);
-    setNetWeight(net);
+    const dw = toNum(dustWeightStr);
+    const mw = toNum(moistureWeightStr);
 
-    let dW: number | null = null;
-    let mW: number | null = null;
+    const dustPercent =
+      dw != null && dw !== 0 && net !== 0 ? derivePercent(net, dw) : null;
+    const moisturePercent =
+      mw != null && mw !== 0 && net !== 0 ? derivePercent(net, mw) : null;
 
-    if (dustEditMode === "percent") {
-      const dp = toNum(dustPercentStr);
-      if (dp != null && dp !== 0) {
-        dW = dustWeightFromPercent(net, dp);
-        setDustWeightStr(dW.toString());
-      } else {
-        setDustWeightStr("");
-      }
-    } else if (dustEditMode === "weight") {
-      const dw = toNum(dustWeightStr);
-      if (dw != null && dw !== 0 && net !== 0) {
-        const dp = dustPercentFromWeight(net, dw);
-        setDustPercentStr(dp.toString());
-        dW = dw;
-      } else {
-        setDustPercentStr("");
-      }
-    }
+    const includedDust = !dustExcluded ? (dw ?? 0) : 0;
+    const includedMoisture = !moistureExcluded ? (mw ?? 0) : 0;
+    const deduction = Math.max(includedDust, includedMoisture);
+    const finalWeight = Math.round((net - deduction) * 100) / 100;
 
-    if (moistureEditMode === "percent") {
-      const mp = toNum(moisturePercentStr);
-      if (mp != null && mp !== 0) {
-        mW = moistureWeightFromPercent(net, mp);
-        setMoistureWeightStr(mW.toString());
-      } else {
-        setMoistureWeightStr("");
-      }
-    } else if (moistureEditMode === "weight") {
-      const mw = toNum(moistureWeightStr);
-      if (mw != null && mw !== 0 && net !== 0) {
-        const mp = moisturePercentFromWeight(net, mw);
-        setMoisturePercentStr(mp.toString());
-        mW = mw;
-      } else {
-        setMoisturePercentStr("");
-      }
-    }
-
-    setFinalWeight(computeFinal(net, dW, mW));
+    return { net, dustPercent, moisturePercent, deduction, finalWeight };
   }, [
     grossWeight,
     tareWeight,
-    dustPercentStr,
     dustWeightStr,
-    dustEditMode,
-    moisturePercentStr,
     moistureWeightStr,
-    moistureEditMode,
+    dustExcluded,
+    moistureExcluded,
   ]);
-
-  useEffect(() => {
-    recalc();
-  }, [recalc]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -158,20 +106,18 @@ export default function EntryForm() {
       company,
       printedSlipNo,
       date,
+      vendorName,
+      vehicleNumber,
       driverName,
       driverContact,
       vehicleType,
       material,
       grossWeight: toNum(grossWeight) ?? 0,
       tareWeight: toNum(tareWeight) ?? 0,
-      dustPercent:
-        dustEditMode === "percent" ? toNum(dustPercentStr) : null,
-      dustWeight:
-        dustEditMode === "weight" ? toNum(dustWeightStr) : null,
-      moisturePercent:
-        moistureEditMode === "percent" ? toNum(moisturePercentStr) : null,
-      moistureWeight:
-        moistureEditMode === "weight" ? toNum(moistureWeightStr) : null,
+      dustWeight: toNum(dustWeightStr),
+      moistureWeight: toNum(moistureWeightStr),
+      dustExcluded,
+      moistureExcluded,
     });
 
     setSaving(false);
@@ -186,18 +132,16 @@ export default function EntryForm() {
   function handleNewEntry() {
     setSavedEntryId(null);
     setPrintedSlipNo("");
+    setVendorName("");
+    setVehicleNumber("");
     setDriverName("");
     setDriverContact("");
     setGrossWeight("");
     setTareWeight("");
-    setDustPercentStr("");
     setDustWeightStr("");
-    setDustEditMode(null);
-    setMoisturePercentStr("");
     setMoistureWeightStr("");
-    setMoistureEditMode(null);
-    setNetWeight(null);
-    setFinalWeight(null);
+    setDustExcluded(false);
+    setMoistureExcluded(false);
     setDate(formatDate(new Date()));
   }
 
@@ -212,9 +156,7 @@ export default function EntryForm() {
           </p>
           <div className="flex gap-3">
             <button
-              onClick={() =>
-                router.push(`/print?ids=${savedEntryId}`)
-              }
+              onClick={() => router.push(`/print?ids=${savedEntryId}`)}
               className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
             >
               Print This Slip
@@ -240,12 +182,19 @@ export default function EntryForm() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
       <div className="mb-4 flex items-center gap-2 text-sm text-gray-500">
-        <button onClick={() => router.push("/entries")} className="hover:text-gray-800 hover:underline">Past Entries</button>
+        <button
+          onClick={() => router.push("/entries")}
+          className="hover:text-gray-800 hover:underline"
+        >
+          Past Entries
+        </button>
         <span>/</span>
         <span className="text-gray-900">New Entry</span>
       </div>
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">New Weighment Entry</h1>
+        <h1 className="text-2xl font-bold text-gray-900">
+          New Weighment Entry
+        </h1>
         <button
           onClick={() => router.push("/entries")}
           className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
@@ -309,6 +258,18 @@ export default function EntryForm() {
                 className="mt-1 block w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Vendor Name
+              </label>
+              <input
+                type="text"
+                value={vendorName}
+                onChange={(e) => setVendorName(e.target.value)}
+                className="mt-1 block w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                placeholder="Party / supplier name"
+              />
+            </div>
           </div>
         </div>
 
@@ -319,13 +280,24 @@ export default function EntryForm() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="block text-sm font-medium text-gray-700">
+                Vehicle Number
+              </label>
+              <input
+                type="text"
+                value={vehicleNumber}
+                onChange={(e) => setVehicleNumber(e.target.value)}
+                className="mt-1 block w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                placeholder="Registration number"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
                 Driver Name
               </label>
               <input
                 type="text"
                 value={driverName}
                 onChange={(e) => setDriverName(e.target.value)}
-                required
                 className="mt-1 block w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </div>
@@ -394,8 +366,8 @@ export default function EntryForm() {
               <label className="block text-sm font-medium text-gray-700">
                 Net Weight
               </label>
-              <div className="mt-1 flex h-9.5 items-center rounded border border-gray-200 bg-gray-50 px-3 text-sm font-semibold text-gray-900">
-                {netWeight != null ? `${netWeight} kg` : "—"}
+              <div className="mt-1 flex h-[38px] items-center rounded border border-gray-200 bg-gray-50 px-3 text-sm font-semibold text-gray-900">
+                {calc ? `${calc.net} kg` : "—"}
               </div>
             </div>
           </div>
@@ -408,26 +380,6 @@ export default function EntryForm() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="block text-sm font-medium text-gray-700">
-                Dust %
-              </label>
-              <input
-                type="number"
-                step="any"
-                min="0"
-                max="100"
-                value={dustPercentStr}
-                onChange={(e) => {
-                  setDustPercentStr(e.target.value);
-                  setDustEditMode(e.target.value ? "percent" : null);
-                  if (!e.target.value) setDustWeightStr("");
-                }}
-                disabled={dustEditMode === "weight"}
-                className="mt-1 block w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
-                placeholder="Enter %"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
                 Dust Weight (kg)
               </label>
               <input
@@ -435,35 +387,24 @@ export default function EntryForm() {
                 step="any"
                 min="0"
                 value={dustWeightStr}
-                onChange={(e) => {
-                  setDustWeightStr(e.target.value);
-                  setDustEditMode(e.target.value ? "weight" : null);
-                  if (!e.target.value) setDustPercentStr("");
-                }}
-                disabled={dustEditMode === "percent"}
-                className="mt-1 block w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
-                placeholder="Enter weight"
+                onChange={(e) => setDustWeightStr(e.target.value)}
+                className="mt-1 block w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                placeholder="Enter kg"
               />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Moisture %
+              {calc?.dustPercent != null && (
+                <p className="mt-1 text-xs text-gray-500">
+                  = {calc.dustPercent}%
+                </p>
+              )}
+              <label className="mt-2 flex items-center gap-2 text-sm text-gray-600">
+                <input
+                  type="checkbox"
+                  checked={dustExcluded}
+                  onChange={(e) => setDustExcluded(e.target.checked)}
+                  className="rounded border-gray-300"
+                />
+                Exclude from deduction
               </label>
-              <input
-                type="number"
-                step="any"
-                min="0"
-                max="100"
-                value={moisturePercentStr}
-                onChange={(e) => {
-                  setMoisturePercentStr(e.target.value);
-                  setMoistureEditMode(e.target.value ? "percent" : null);
-                  if (!e.target.value) setMoistureWeightStr("");
-                }}
-                disabled={moistureEditMode === "weight"}
-                className="mt-1 block w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
-                placeholder="Enter %"
-              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">
@@ -474,27 +415,34 @@ export default function EntryForm() {
                 step="any"
                 min="0"
                 value={moistureWeightStr}
-                onChange={(e) => {
-                  setMoistureWeightStr(e.target.value);
-                  setMoistureEditMode(e.target.value ? "weight" : null);
-                  if (!e.target.value) setMoisturePercentStr("");
-                }}
-                disabled={moistureEditMode === "percent"}
-                className="mt-1 block w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
-                placeholder="Enter weight"
+                onChange={(e) => setMoistureWeightStr(e.target.value)}
+                className="mt-1 block w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                placeholder="Enter kg"
               />
+              {calc?.moisturePercent != null && (
+                <p className="mt-1 text-xs text-gray-500">
+                  = {calc.moisturePercent}%
+                </p>
+              )}
+              <label className="mt-2 flex items-center gap-2 text-sm text-gray-600">
+                <input
+                  type="checkbox"
+                  checked={moistureExcluded}
+                  onChange={(e) => setMoistureExcluded(e.target.checked)}
+                  className="rounded border-gray-300"
+                />
+                Exclude from deduction
+              </label>
             </div>
           </div>
-          {(dustEditMode || moistureEditMode) && (
+          {(dustWeightStr || moistureWeightStr) && (
             <button
               type="button"
               onClick={() => {
-                setDustPercentStr("");
                 setDustWeightStr("");
-                setDustEditMode(null);
-                setMoisturePercentStr("");
                 setMoistureWeightStr("");
-                setMoistureEditMode(null);
+                setDustExcluded(false);
+                setMoistureExcluded(false);
               }}
               className="mt-3 text-xs text-gray-500 hover:underline"
             >
@@ -505,11 +453,18 @@ export default function EntryForm() {
 
         <div className="rounded-lg border-2 border-blue-200 bg-blue-50 p-6">
           <div className="flex items-center justify-between">
-            <span className="text-lg font-semibold text-gray-900">
-              Final Weight
-            </span>
+            <div>
+              <span className="text-lg font-semibold text-gray-900">
+                Final Weight
+              </span>
+              {calc && calc.deduction > 0 && (
+                <span className="ml-3 text-sm text-gray-500">
+                  (deduction: {calc.deduction} kg)
+                </span>
+              )}
+            </div>
             <span className="text-2xl font-bold text-blue-700">
-              {finalWeight != null ? `${finalWeight} kg` : "—"}
+              {calc ? `${calc.finalWeight} kg` : "—"}
             </span>
           </div>
         </div>
