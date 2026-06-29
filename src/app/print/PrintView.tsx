@@ -12,6 +12,8 @@ interface PrintEntry {
   };
   printedSlipNo: string;
   date: string;
+  vendorName: string;
+  vehicleNumber: string;
   driverName: string;
   driverContact: string;
   vehicleType: string;
@@ -19,10 +21,13 @@ interface PrintEntry {
   grossWeight: number;
   tareWeight: number;
   netWeight: number;
-  dustPercent: number | null;
   dustWeight: number | null;
-  moisturePercent: number | null;
+  dustPercent: number | null;
   moistureWeight: number | null;
+  moisturePercent: number | null;
+  dustExcluded: boolean;
+  moistureExcluded: boolean;
+  deduction: number;
   finalWeight: number;
 }
 
@@ -34,7 +39,19 @@ function formatDate(iso: string): string {
   });
 }
 
+function formatDeductionVal(weight: number | null, percent: number | null, excluded: boolean): string {
+  if (weight == null) return "—";
+  let s = `${weight} kg`;
+  if (percent != null) s += ` (${percent}%)`;
+  if (excluded) s += " *";
+  return s;
+}
+
 function SlipCard({ entry }: { entry: PrintEntry }) {
+  const hasDeductions = entry.dustWeight != null || entry.moistureWeight != null;
+  const hasExcluded = (entry.dustWeight != null && entry.dustExcluded) ||
+    (entry.moistureWeight != null && entry.moistureExcluded);
+
   return (
     <div className="slip">
       <div className="slip-header">
@@ -55,7 +72,16 @@ function SlipCard({ entry }: { entry: PrintEntry }) {
 
         <div className="slip-row">
           <span>
-            <strong>Driver:</strong> {entry.driverName}
+            <strong>Vendor:</strong> {entry.vendorName || "—"}
+          </span>
+          <span>
+            <strong>Vehicle No:</strong> {entry.vehicleNumber || "—"}
+          </span>
+        </div>
+
+        <div className="slip-row">
+          <span>
+            <strong>Driver:</strong> {entry.driverName || "—"}
           </span>
           <span>
             <strong>Contact:</strong> {entry.driverContact || "—"}
@@ -85,19 +111,15 @@ function SlipCard({ entry }: { entry: PrintEntry }) {
               <td></td>
               <td></td>
             </tr>
-            {(entry.dustPercent != null || entry.moisturePercent != null) && (
+            {hasDeductions && (
               <tr>
                 <td>Dust</td>
                 <td className="weight-val">
-                  {entry.dustPercent != null
-                    ? `${entry.dustPercent}% (${entry.dustWeight} kg)`
-                    : "—"}
+                  {formatDeductionVal(entry.dustWeight, entry.dustPercent, entry.dustExcluded)}
                 </td>
                 <td>Moisture</td>
                 <td className="weight-val">
-                  {entry.moisturePercent != null
-                    ? `${entry.moisturePercent}% (${entry.moistureWeight} kg)`
-                    : "—"}
+                  {formatDeductionVal(entry.moistureWeight, entry.moisturePercent, entry.moistureExcluded)}
                 </td>
               </tr>
             )}
@@ -111,6 +133,12 @@ function SlipCard({ entry }: { entry: PrintEntry }) {
             </tr>
           </tbody>
         </table>
+
+        {hasExcluded && (
+          <div className="slip-footnote">
+            * Not included in final weight calculation.
+          </div>
+        )}
 
         <div className="signature-line">
           <span>Signature: ________________________</span>

@@ -6,6 +6,8 @@ export interface IEntry extends Document {
   printedSlipNo: string;
   internalId: number;
   date: Date;
+  vendorName: string;
+  vehicleNumber: string;
   driverName: string;
   driverContact: string;
   vehicleType: string;
@@ -13,10 +15,13 @@ export interface IEntry extends Document {
   grossWeight: number;
   tareWeight: number;
   netWeight: number;
-  dustPercent: number | null;
   dustWeight: number | null;
-  moisturePercent: number | null;
+  dustPercent: number | null;
   moistureWeight: number | null;
+  moisturePercent: number | null;
+  dustExcluded: boolean;
+  moistureExcluded: boolean;
+  deduction: number;
   finalWeight: number;
   operator: Types.ObjectId;
   createdAt: Date;
@@ -43,9 +48,19 @@ const EntrySchema = new Schema<IEntry>(
       type: Date,
       required: true,
     },
+    vendorName: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    vehicleNumber: {
+      type: String,
+      default: "",
+      trim: true,
+    },
     driverName: {
       type: String,
-      required: true,
+      default: "",
       trim: true,
     },
     driverContact: {
@@ -75,11 +90,15 @@ const EntrySchema = new Schema<IEntry>(
       type: Number,
       required: true,
     },
+    dustWeight: {
+      type: Number,
+      default: null,
+    },
     dustPercent: {
       type: Number,
       default: null,
     },
-    dustWeight: {
+    moistureWeight: {
       type: Number,
       default: null,
     },
@@ -87,9 +106,17 @@ const EntrySchema = new Schema<IEntry>(
       type: Number,
       default: null,
     },
-    moistureWeight: {
+    dustExcluded: {
+      type: Boolean,
+      default: false,
+    },
+    moistureExcluded: {
+      type: Boolean,
+      default: false,
+    },
+    deduction: {
       type: Number,
-      default: null,
+      default: 0,
     },
     finalWeight: {
       type: Number,

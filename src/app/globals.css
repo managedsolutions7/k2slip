@@ -93,6 +93,13 @@ body {
   font-weight: bold;
 }
 
+.slip-footnote {
+  margin-top: 4px;
+  font-size: 9px;
+  font-style: italic;
+  color: #555;
+}
+
 .signature-line {
   margin-top: 10px;
   font-size: 11px;

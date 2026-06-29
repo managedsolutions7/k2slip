@@ -37,9 +37,11 @@ Two roles only. Keep it simple.
   - Creates and manages operator/admin accounts
   - Manages **Companies** (the slip header)
   - Manages master lists: **Materials** and **Vehicle Types**
+  - **Can edit ANY entry at any time**, regardless of who created it
   - Can do everything an operator can
 - **Operator**
   - Creates weighment entries
+  - **Can edit their OWN entries** (not other operators' entries)
   - Searches/reprints past entries
   - Cannot manage users, companies, or master data
 
@@ -54,20 +56,34 @@ A truck is weighed loaded (gross), then empty (tare). If the material carries du
 ### The math (this is critical — get it exactly right)
 
 ```
-Net Weight    = Gross Weight − Tare Weight
-Dust Weight   = Net Weight × (Dust % / 100)
-Moisture Weight = Net Weight × (Moisture % / 100)
-Final Weight  = Net Weight − Dust Weight − Moisture Weight
+Net = Gross − Tare
+
+Dust and Moisture are entered in KG.
+Their % is DERIVED for display only:
+    dustPercent     = dustWeight / Net × 100
+    moisturePercent = moistureWeight / Net × 100
+(shown in brackets next to the kg value, e.g. "120 kg (2.5%)")
+
+Each of dust and moisture has its own "exclude from deduction" checkbox.
+    default = UNCHECKED = the value IS included in the calculation
+    CHECKED = the value is EXCLUDED from the calculation (but still printed on the slip)
+
+Only the HIGHER of the included values is deducted — never both:
+    deduction = max( of the included weights )
+      - both unchecked   → max(dustWeight, moistureWeight)
+      - dust checked      → moistureWeight
+      - moisture checked  → dustWeight
+      - both checked      → 0
+
+Final = Net − deduction
 ```
 
-- All weights are in **kg**.
-- Dust and moisture are **two-way fields**: the operator can type either the **percentage** OR the **weight directly**, and the other is auto-filled.
-  - Enter dust % → `Dust Weight = round(Net × dust% / 100)`
-  - Enter dust weight → `Dust % = (Dust Weight / Net) × 100`
-  - Same logic for moisture.
-- Net must be known before % ↔ weight conversion can resolve. If Gross or Tare is missing, hold the conversion and show net as blank/0.
-- Dust and moisture are **optional**. If both are empty, `Final Weight = Net Weight`.
-- **Rounding:** weights stored as numbers. Display/round to a sensible kg precision — confirm with the user whether they want whole kg or decimals before finalizing. Default to 2 decimals internally, display whole kg unless told otherwise.
+- All weights are in **kg**. Dust and moisture are entered as **kg**, not percentage. The percentage is calculated and shown in brackets for display only.
+- The deduction is the **single larger** of the included dust/moisture weights — they are **not** both subtracted. Because both are measured against the same Net, the larger weight is also the larger %, so comparing by weight is unambiguous.
+- A blank dust/moisture field counts as 0, so it naturally drops out of the `max`.
+- Dust and moisture are **optional**. If both are empty (or both excluded), `Final = Net`.
+- Net must be known before the % can be derived. If Gross or Tare is missing, show Net as blank/0 and show no derived %.
+- **Rounding:** weights stored as numbers. Default to 2 decimals internally; display whole kg unless the user says otherwise. Derived % shown to 2 decimals. If Net is 0/blank, show no % rather than erroring (no divide-by-zero).
 
 ### Fields on an entry
 
@@ -77,6 +93,8 @@ Final Weight  = Net Weight − Dust Weight − Moisture Weight
 | Printed Slip No | **typed manually** | the company's own slip-book number; printed on slip |
 | Internal ID | auto | unique, **not printed**, used for app-side tracking/search |
 | Date | manual (default today) | |
+| Vendor Name | manual | party/supplier name; prints on slip |
+| Vehicle Number | manual | registration no; prints on slip |
 | Driver Name | manual | |
 | Driver Contact No | manual | |
 | Vehicle Type | dropdown + free text | from master list, but can type a new value |
@@ -84,9 +102,13 @@ Final Weight  = Net Weight − Dust Weight − Moisture Weight
 | Gross Weight (kg) | manual | |
 | Tare Weight (kg) | manual | |
 | Net Weight (kg) | calculated | Gross − Tare |
-| Dust % / Dust Weight | manual, two-way | optional |
-| Moisture % / Moisture Weight | manual, two-way | optional |
-| Final Weight (kg) | calculated | Net − dust wt − moisture wt |
+| Dust Weight (kg) | manual | optional; % derived for display |
+| Dust % | calculated | display-only, shown in brackets |
+| Dust excluded | checkbox | default off (included); on = not deducted, still printed |
+| Moisture Weight (kg) | manual | optional; % derived for display |
+| Moisture % | calculated | display-only, shown in brackets |
+| Moisture excluded | checkbox | default off (included); on = not deducted, still printed |
+| Final Weight (kg) | calculated | Net − max(included dust/moisture wt) |
 | Signature | line on printed slip | not a data field |
 | Operator | auto | who created the entry |
 | Created / Updated timestamps | auto | |
@@ -113,7 +135,9 @@ The printed slip header mirrors the uploaded sample: large bold company name, ad
 - Slip size = **1/3 of A4**. Three slips fit on one A4 sheet.
 - Printing is **batch**: operator selects N entries (could be 1, could be 12), and they are laid out **3 slips per A4 page**, paginating onto multiple pages as needed. These are *different* entries stacked to save paper — NOT three copies of the same entry.
 - Use a print-only layout (`@media print`) with exact A4 sizing and clean page breaks between groups of 3. Screen UI must not appear in print, and the slip must not appear cluttered.
-- Each printed slip shows the company header + all slip fields, matching the layout of the uploaded sample (Slip No, Date, Driver Name/Contact/Vehicle Type, Type of Material, Gross/Tare/Net/Final weights, Dust %, Moisture %, Signature line, and the footer line "Goods once weighed will not be taken back. Thank You!").
+- Each printed slip shows the company header + all slip fields, matching the layout of the uploaded sample (Slip No, Date, Vendor Name, Vehicle Number, Driver Name/Contact/Vehicle Type, Type of Material, Gross/Tare/Net/Final weights, Dust, Moisture, Signature line, and the footer line "Goods once weighed will not be taken back. Thank You!").
+- **Dust and Moisture print as KG with the derived % in brackets** — e.g. `Dust : 120 kg (2.5%)`, `Moisture : 80 kg (1.6%)`. The old `Dust %` / `Moisture %` labels (with a trailing `%`) are gone — the value is now a weight.
+- If a dust/moisture value is **excluded** from the deduction (its checkbox was on), still print the value but mark it with an **asterisk (\*)** next to the value — e.g. `Dust : 120 kg (2.5%) *`. Add a small footnote line on the slip: **"\* Not included in final weight calculation."** Only show this footnote when at least one value on that slip is asterisked.
 - The internal ID is **never** printed.
 
 ---
@@ -126,9 +150,31 @@ The printed slip header mirrors the uploaded sample: large bold company name, ad
 
 ---
 
-## Bulk import (later phase, not now)
+## Bulk import (CSV)
 
-The user has existing records and will bulk-import them. **Do not build this until the user provides a sample of their data (Excel/CSV with real columns).** When building, map their columns to the entry schema and validate before inserting. Forward entry works without it.
+Operators/admin can bulk-import existing records from a CSV. Use the column format below (header row required). Net, percentages, and final weight are **not** imported — they are recomputed on import via `lib/calc.ts`. Validate every row, preview before insert, import in batches, and report failed rows instead of silently dropping them.
+
+**CSV columns (in order):**
+
+| Column | Required | Notes |
+|---|---|---|
+| `company` | yes | must match an existing Company name |
+| `printedSlipNo` | yes | the company's own slip number |
+| `date` | yes | `YYYY-MM-DD` |
+| `vendorName` | no | |
+| `vehicleNumber` | no | |
+| `driverName` | no | |
+| `driverContact` | no | |
+| `vehicleType` | no | free text or existing master value |
+| `material` | no | free text or existing master value |
+| `grossWeight` | yes | kg |
+| `tareWeight` | yes | kg |
+| `dustWeight` | no | kg; blank = 0 |
+| `moistureWeight` | no | kg; blank = 0 |
+| `dustExcluded` | no | `true`/`false`; blank = false |
+| `moistureExcluded` | no | `true`/`false`; blank = false |
+
+A sample file (`sample_import.csv`) accompanies this spec.
 
 ---
 
